@@ -177,7 +177,7 @@ func main() {
 				progress.Hide()
 				statusLabel.SetText("Scan completed successfully!")
 				btn.Enable()
-				
+
 				// Send notification
 				fyne.CurrentApp().SendNotification(&fyne.Notification{
 					Title:   "Scan Complete",
@@ -315,18 +315,12 @@ func scanReplays(userNickname string, progressCallback func(float64)) (*RaceStat
 		rep, err := repparser.ParseFile(repFile)
 		if err != nil {
 			// Skip files that can't be parsed
-			fmt.Printf("Failed to parse replay file: %s, error: %v\n", repFile, err)
 			continue
 		}
 
-		fmt.Printf("Successfully parsed replay file: %s\n", repFile)
-		fmt.Printf("Number of players in replay: %d\n", len(rep.Header.Players))
-
 		// Find the player with the matching nickname
 		for _, player := range rep.Header.Players {
-			fmt.Printf("Player found: %s\n", player.Name)
 			if player.Name == userNickname {
-				fmt.Printf("Found matching player: %s, race: %v\n", player.Name, player.Race)
 				// Count race usage
 				switch player.Race {
 				case repcore.RaceTerran:
