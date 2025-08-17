@@ -155,8 +155,9 @@ func main() {
 		go func(btn *widget.Button, prog *widget.ProgressBar) {
 			stats, err := scanReplays(userNickname, func(p float64) {
 				// Update progress bar in UI thread
-				fyne.CurrentApp().Driver().CanvasForObject(btn)
-				prog.SetValue(p)
+				fyne.Do(func() {
+					prog.SetValue(p)
+				})
 			})
 			if err != nil {
 				fyne.Do(func() {
@@ -168,10 +169,6 @@ func main() {
 			}
 
 			// Update UI with results
-			fyne.CurrentApp().SendNotification(&fyne.Notification{
-				Title:   "Scan Complete",
-				Content: fmt.Sprintf("Found %d Terran, %d Zerg, %d Protoss games", stats.Terran, stats.Zerg, stats.Protoss),
-			})
 			fyne.Do(func() {
 				terrLabel.SetText(fmt.Sprintf("Terran: %d", stats.Terran))
 				zergLabel.SetText(fmt.Sprintf("Zerg: %d", stats.Zerg))
@@ -180,6 +177,12 @@ func main() {
 				progress.Hide()
 				statusLabel.SetText("Scan completed successfully!")
 				btn.Enable()
+				
+				// Send notification
+				fyne.CurrentApp().SendNotification(&fyne.Notification{
+					Title:   "Scan Complete",
+					Content: fmt.Sprintf("Found %d Terran, %d Zerg, %d Protoss games", stats.Terran, stats.Zerg, stats.Protoss),
+				})
 			})
 		}(scanButton, progress)
 	}
@@ -248,30 +251,54 @@ func loadUserNickname() (string, error) {
 // scanReplays scans the user's replay files and gathers race usage statistics
 func scanReplays(userNickname string, progressCallback func(float64)) (*RaceStats, error) {
 	// Get the replay directory path
-	replayDir := os.Getenv("USERPROFILE") + "\\Documents\\StarCraft\\Maps\\Replays"
-
+	replayDir := filepath.Join(os.Getenv("USERPROFILE"), "Documents", "StarCraft", "Maps", "Replays", "AutoSave")
 	// Check if the replay directory exists
 	if _, err := os.Stat(replayDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("replays directory not found: %s", replayDir)
+		return nil, fmt.Errorf("autoreplays directory not found: %s", replayDir)
+	}
+
+	// Get subdirectories (date folders)
+	subdirs, err := os.ReadDir(replayDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read autoreplays directory: %v", err)
+	}
+
+	if len(subdirs) == 0 {
+		return nil, fmt.Errorf("no date folders found in autoreplays directory")
 	}
 
 	// Find all .rep files in the directory and subdirectories
 	var repFiles []string
-	
-	// Walk through the directory tree to find all .rep files
-	err := filepath.Walk(replayDir, func(path string, info os.FileInfo, err error) error {
+
+	// Walk through each subdirectory to find all .rep files
+	for i, subdir := range subdirs {
+		if !subdir.IsDir() {
+			continue
+		}
+
+		subDirPath := filepath.Join(replayDir, subdir.Name())
+		err := filepath.Walk(subDirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// Check if it's a .rep file
+			if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".rep") {
+				repFiles = append(repFiles, path)
+			}
+
+			return nil
+		})
+
+		// Update progress after each subdirectory is processed
+		if progressCallback != nil {
+			progressCallback(float64(i+1) / float64(len(subdirs)))
+		}
+
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to walk subdirectory %s: %v", subdir.Name(), err)
 		}
-		
-		// Check if it's a .rep file
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".rep") {
-			repFiles = append(repFiles, path)
-		}
-		
-		return nil
-	})
-	
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to walk replay directory: %v", err)
 	}
@@ -284,21 +311,22 @@ func scanReplays(userNickname string, progressCallback func(float64)) (*RaceStat
 
 	// Parse each replay file
 	for _, repFile := range repFiles {
-		// Check if the filename contains the user's nickname
-		if !strings.Contains(strings.ToLower(repFile), strings.ToLower(userNickname)) {
-			continue
-		}
-
 		// Parse the replay file
 		rep, err := repparser.ParseFile(repFile)
 		if err != nil {
 			// Skip files that can't be parsed
+			fmt.Printf("Failed to parse replay file: %s, error: %v\n", repFile, err)
 			continue
 		}
 
+		fmt.Printf("Successfully parsed replay file: %s\n", repFile)
+		fmt.Printf("Number of players in replay: %d\n", len(rep.Header.Players))
+
 		// Find the player with the matching nickname
 		for _, player := range rep.Header.Players {
+			fmt.Printf("Player found: %s\n", player.Name)
 			if player.Name == userNickname {
+				fmt.Printf("Found matching player: %s, race: %v\n", player.Name, player.Race)
 				// Count race usage
 				switch player.Race {
 				case repcore.RaceTerran:
