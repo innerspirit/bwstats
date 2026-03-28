@@ -1,3 +1,5 @@
+//go:build windows
+
 package main
 
 import (
@@ -6,25 +8,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 )
-
-// RaceStats holds statistics about race usage
-type RaceStats struct {
-	Terran  int
-	Zerg    int
-	Protoss int
-}
-
-// BuildingStats holds statistics about building construction per player
-type BuildingStats struct {
-	PlayerName    string
-	SupplyDepots  []int // Count per second
-	Overlords     []int // Count per second
-	Pylons        []int // Count per second
-	MaxDuration   int   // Maximum game duration in seconds
-}
-
-// BuildingStatsMap holds building statistics for all players
-type BuildingStatsMap map[string]*BuildingStats
 
 func main() {
 	myApp := app.NewWithID("com.innerspirit.bwstats")
@@ -126,4 +109,3 @@ func main() {
 	myWindow.SetContent(content)
 	myWindow.ShowAndRun()
 }
-

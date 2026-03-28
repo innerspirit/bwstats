@@ -1,7 +1,8 @@
+//go:build windows
+
 package main
 
 import (
-	"fmt"
 	"image/color"
 
 	"fyne.io/fyne/v2"
@@ -123,25 +124,20 @@ func CreateUI(userNickname string) (fyne.CanvasObject, *widget.Label, *widget.La
 
 // UpdateRaceStatsUI updates the UI elements with race statistics
 func UpdateRaceStatsUI(terrLabel, zergLabel, protossLabel, totalLabel *widget.Label, stats *RaceStats) {
-	terrLabel.SetText(fmt.Sprintf("Terran: %d", stats.Terran))
-	zergLabel.SetText(fmt.Sprintf("Zerg: %d", stats.Zerg))
-	protossLabel.SetText(fmt.Sprintf("Protoss: %d", stats.Protoss))
-	totalLabel.SetText(fmt.Sprintf("Total Games: %d", stats.Terran+stats.Zerg+stats.Protoss))
+	terrText, zergText, protossText, totalText := formatRaceStats(stats)
+	terrLabel.SetText(terrText)
+	zergLabel.SetText(zergText)
+	protossLabel.SetText(protossText)
+	totalLabel.SetText(totalText)
 }
 
 // UpdateBuildingStatsUI updates the UI elements with building statistics
 func UpdateBuildingStatsUI(terrLabel, zergLabel, protossLabel, totalLabel *widget.Label, playerStats *BuildingStats) {
-	terrLabel.SetText(fmt.Sprintf("Supply Depots: %d (avg: %.2f/sec)",
-		sumSlice(playerStats.SupplyDepots),
-		float64(sumSlice(playerStats.SupplyDepots))/float64(len(playerStats.SupplyDepots))))
-	zergLabel.SetText(fmt.Sprintf("Overlords: %d (avg: %.2f/sec)",
-		sumSlice(playerStats.Overlords),
-		float64(sumSlice(playerStats.Overlords))/float64(len(playerStats.Overlords))))
-	protossLabel.SetText(fmt.Sprintf("Pylons: %d (avg: %.2f/sec)",
-		sumSlice(playerStats.Pylons),
-		float64(sumSlice(playerStats.Pylons))/float64(len(playerStats.Pylons))))
-	totalLabel.SetText(fmt.Sprintf("Total Buildings: %d",
-		sumSlice(playerStats.SupplyDepots)+sumSlice(playerStats.Overlords)+sumSlice(playerStats.Pylons)))
+	terrText, zergText, protossText, totalText := formatBuildingStats(playerStats)
+	terrLabel.SetText(terrText)
+	zergLabel.SetText(zergText)
+	protossLabel.SetText(protossText)
+	totalLabel.SetText(totalText)
 }
 
 // ResetStatsUI resets the UI elements to their initial state

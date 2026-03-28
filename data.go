@@ -20,11 +20,8 @@ type Settings struct {
 	GatewayHistory []Account `json:"Gateway History"`
 }
 
-// findReplayFiles scans the user's replay directory and returns a list of all .rep files
-func findReplayFiles(progressCallback func(float64)) ([]string, error) {
-	// Get the replay directory path
-	replayDir := filepath.Join(os.Getenv("USERPROFILE"), "Documents", "StarCraft", "Maps", "Replays", "AutoSave")
-	
+// findReplayFilesInDir scans a provided replay directory and returns a list of all .rep files
+func findReplayFilesInDir(replayDir string, progressCallback func(float64)) ([]string, error) {
 	// Check if the replay directory exists
 	if _, err := os.Stat(replayDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("autoreplays directory not found: %s", replayDir)
@@ -72,21 +69,19 @@ func findReplayFiles(progressCallback func(float64)) ([]string, error) {
 			return nil, fmt.Errorf("failed to walk subdirectory %s: %v", subdir.Name(), err)
 		}
 	}
-	
+
 	return repFiles, nil
 }
 
-// loadUserNickname loads the user's nickname from CSettings.json
-func loadUserNickname() (string, error) {
-	// Get user home directory
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %v", err)
-	}
+// findReplayFiles scans the user's replay directory and returns a list of all .rep files
+func findReplayFiles(progressCallback func(float64)) ([]string, error) {
+	// Get the replay directory path
+	replayDir := filepath.Join(os.Getenv("USERPROFILE"), "Documents", "StarCraft", "Maps", "Replays", "AutoSave")
+	return findReplayFilesInDir(replayDir, progressCallback)
+}
 
-	// Construct path to CSettings.json similarly to akafinder
-	settingsPath := filepath.Join(userHome, "Documents", "StarCraft", "CSettings.json")
-
+// loadUserNicknameFromPath loads a nickname from a specific CSettings.json path (testable)
+func loadUserNicknameFromPath(settingsPath string) (string, error) {
 	// Check if file exists
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 		return "Settings file not found", nil
@@ -117,4 +112,17 @@ func loadUserNickname() (string, error) {
 	}
 
 	return "No accounts found", nil
+}
+
+// loadUserNickname loads the user's nickname from CSettings.json
+func loadUserNickname() (string, error) {
+	// Get user home directory
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %v", err)
+	}
+
+	// Construct path to CSettings.json similarly to akafinder
+	settingsPath := filepath.Join(userHome, "Documents", "StarCraft", "CSettings.json")
+	return loadUserNicknameFromPath(settingsPath)
 }
