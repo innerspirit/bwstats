@@ -3,15 +3,21 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
+	"strings"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
-// FuturisticTheme defines a custom dark theme
+const chartHeight float32 = 72
+
+// FuturisticTheme defines a custom dark theme.
 type FuturisticTheme struct{}
 
 func (f FuturisticTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
@@ -78,83 +84,139 @@ func (f FuturisticTheme) Size(name fyne.ThemeSizeName) float32 {
 	}
 }
 
-// CreateUI creates and returns all UI elements for the main window
-func CreateUI(userNickname string) (fyne.CanvasObject, *widget.Label, *widget.Label, *widget.Label, *widget.Label, *widget.ProgressBar, *widget.Label, *widget.Button, *widget.Button) {
-	// UI elements
-	welcomeLabel := widget.NewLabel("BW Stats - Replay Analyzer")
+type AppUI struct {
+	Content      fyne.CanvasObject
+	ManualEntry  *widget.Entry
+	SummaryLabel *widget.Label
+	Progress     *widget.ProgressBar
+	StatusLabel  *widget.Label
+	ScanButton   *widget.Button
+	SupplyChart  *MiniBarChart
+	WorkerChart  *MiniBarChart
+}
+
+type MiniBarChart struct {
+	title  *widget.Label
+	footer *widget.Label
+	bars   *fyne.Container
+	root   *fyne.Container
+	color  color.Color
+}
+
+// CreateUI builds the macro-analysis UI.
+func CreateUI(identity PlayerIdentity) *AppUI {
+	welcomeLabel := widget.NewLabel("BW Stats - Brood War Macro Analyzer")
 	welcomeLabel.TextStyle = fyne.TextStyle{Bold: true}
 
-	userLabel := widget.NewLabel("Current User: " + userNickname)
-	userLabel.Wrapping = fyne.TextWrapWord
+	autoTarget := widget.NewLabel(fmt.Sprintf("Auto Target: %s", formatIdentityLabel(identity)))
+	autoTarget.Wrapping = fyne.TextWrapWord
 
-	// Race statistics labels
-	terrLabel := widget.NewLabel("Terran: 0")
-	zergLabel := widget.NewLabel("Zerg: 0")
-	protossLabel := widget.NewLabel("Protoss: 0")
-	totalLabel := widget.NewLabel("Total Games: 0")
+	manualEntry := widget.NewEntry()
+	manualEntry.SetPlaceHolder("Manual player name override (optional)")
 
-	// Progress bar for scanning
+	summaryLabel := widget.NewLabel(strings.Join(formatSummaryLines(nil), "\n"))
+	summaryLabel.Wrapping = fyne.TextWrapWord
+
 	progress := widget.NewProgressBar()
 	progress.Hide()
 
 	statusLabel := widget.NewLabel("")
 	statusLabel.Alignment = fyne.TextAlignCenter
 
-	// Buttons
-	scanButton := widget.NewButton("Scan Replay Files", nil)
-	scanBuildingButton := widget.NewButton("Scan Building Stats", nil)
+	scanButton := widget.NewButton("Scan Macro Stats", nil)
+
+	supplyChart := NewMiniBarChart("Supply Block Chart (0:00-15:00)", color.RGBA{0, 255, 200, 255})
+	workerChart := NewMiniBarChart("Worker Idle Chart (0:00-15:00)", color.RGBA{255, 190, 64, 255})
 
 	content := container.NewVBox(
 		welcomeLabel,
-		userLabel,
+		autoTarget,
+		manualEntry,
 		widget.NewSeparator(),
 		scanButton,
-		scanBuildingButton,
 		progress,
 		statusLabel,
 		widget.NewSeparator(),
-		terrLabel,
-		zergLabel,
-		protossLabel,
-		totalLabel,
+		summaryLabel,
+		widget.NewSeparator(),
+		supplyChart.CanvasObject(),
+		workerChart.CanvasObject(),
 	)
 
-	return content, terrLabel, zergLabel, protossLabel, totalLabel, progress, statusLabel, scanButton, scanBuildingButton
+	return &AppUI{
+		Content:      container.NewVScroll(content),
+		ManualEntry:  manualEntry,
+		SummaryLabel: summaryLabel,
+		Progress:     progress,
+		StatusLabel:  statusLabel,
+		ScanButton:   scanButton,
+		SupplyChart:  supplyChart,
+		WorkerChart:  workerChart,
+	}
 }
 
-// UpdateRaceStatsUI updates the UI elements with race statistics
-func UpdateRaceStatsUI(terrLabel, zergLabel, protossLabel, totalLabel *widget.Label, stats *RaceStats) {
-	terrText, zergText, protossText, totalText := formatRaceStats(stats)
-	terrLabel.SetText(terrText)
-	zergLabel.SetText(zergText)
-	protossLabel.SetText(protossText)
-	totalLabel.SetText(totalText)
+func NewMiniBarChart(title string, barColor color.Color) *MiniBarChart {
+	titleLabel := widget.NewLabel(title)
+	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+
+	footerLabel := widget.NewLabel("Peak bucket: 0s")
+	bars := container.NewGridWithColumns(chartBucketCount)
+
+	chart := &MiniBarChart{
+		title:  titleLabel,
+		footer: footerLabel,
+		bars:   bars,
+		color:  barColor,
+	}
+	chart.root = container.NewVBox(titleLabel, bars, footerLabel)
+	chart.SetSeries(make([]int, chartBucketCount))
+
+	return chart
 }
 
-// UpdateBuildingStatsUI updates the UI elements with building statistics
-func UpdateBuildingStatsUI(terrLabel, zergLabel, protossLabel, totalLabel *widget.Label, playerStats *BuildingStats) {
-	terrText, zergText, protossText, totalText := formatBuildingStats(playerStats)
-	terrLabel.SetText(terrText)
-	zergLabel.SetText(zergText)
-	protossLabel.SetText(protossText)
-	totalLabel.SetText(totalText)
+func (c *MiniBarChart) CanvasObject() fyne.CanvasObject {
+	return c.root
 }
 
-// ResetStatsUI resets the UI elements to their initial state
-func ResetStatsUI(terrLabel, zergLabel, protossLabel, totalLabel *widget.Label) {
-	terrLabel.SetText("Terran: 0")
-	zergLabel.SetText("Zerg: 0")
-	protossLabel.SetText("Protoss: 0")
-	totalLabel.SetText("Total Games: 0")
+func (c *MiniBarChart) SetSeries(series []int) {
+	c.bars.Objects = nil
+	maxValue := 1
+	for _, value := range series {
+		if value > maxValue {
+			maxValue = value
+		}
+	}
+
+	for _, value := range series {
+		height := float32(value) / float32(maxValue) * chartHeight
+		if height < 2 {
+			height = 2
+		}
+		rect := canvas.NewRectangle(c.color)
+		rect.SetMinSize(fyne.NewSize(6, height))
+		c.bars.Add(container.NewVBox(layout.NewSpacer(), rect))
+	}
+
+	c.footer.SetText(formatChartFooter(series))
+	c.bars.Refresh()
 }
 
-// ShowProgress shows the progress bar and updates the status label
+func UpdateSummaryUI(label *widget.Label, summary *MacroSummary) {
+	label.SetText(strings.Join(formatSummaryLines(summary), "\n"))
+}
+
+func formatIdentityLabel(identity PlayerIdentity) string {
+	if len(identity.Aliases) == 0 {
+		return identity.DisplayName
+	}
+	return fmt.Sprintf("%s (%s)", identity.DisplayName, strings.Join(identity.Aliases, ", "))
+}
+
 func ShowProgress(progress *widget.ProgressBar, statusLabel *widget.Label, message string) {
 	progress.Show()
 	statusLabel.SetText(message)
 }
 
-// HideProgress hides the progress bar and updates the status label
 func HideProgress(progress *widget.ProgressBar, statusLabel *widget.Label, message string) {
 	progress.Hide()
 	statusLabel.SetText(message)

@@ -1,20 +1,39 @@
 package main
 
-// RaceStats holds statistics about race usage.
-type RaceStats struct {
-	Terran  int
-	Zerg    int
-	Protoss int
+// PlayerIdentity represents the current player's display name and alias set.
+type PlayerIdentity struct {
+	DisplayName string
+	Aliases     []string
 }
 
-// BuildingStats holds building construction statistics per player.
-type BuildingStats struct {
-	PlayerName   string
-	SupplyDepots []int // Count per second
-	Overlords    []int // Count per second
-	Pylons       []int // Count per second
-	MaxDuration  int   // Maximum game duration in seconds
+// ScanTarget represents the selected replay scan target.
+type ScanTarget struct {
+	DisplayLabel string
+	Names        []string
+	ManualName   string
 }
 
-// BuildingStatsMap holds building statistics for all players.
-type BuildingStatsMap map[string]*BuildingStats
+// ReplayMacroResult holds estimated macro metrics for one replay.
+type ReplayMacroResult struct {
+	Matched              bool
+	SupplyBlockedSeconds int
+	WorkerIdleSeconds    int
+	SupplyChart          []int
+	WorkerChart          []int
+}
+
+// MacroSummary holds the aggregated results shown in the UI.
+type MacroSummary struct {
+	TargetLabel               string
+	ScannedReplays            int
+	MatchedReplays            int
+	SkippedReplays            int
+	TotalSupplyBlockedSeconds int
+	TotalWorkerIdleSeconds    int
+	AvgSupplyBlockedSeconds   float64
+	AvgWorkerIdleSeconds      float64
+	SupplyRating              string
+	WorkerRating              string
+	SupplyChart               []int
+	WorkerChart               []int
+}

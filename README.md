@@ -1,15 +1,17 @@
 # bwstats
-BWStats is a small desktop tool for analyzing StarCraft: Remastered and Brood War replay files.
+BWStats is a small Windows desktop tool for analyzing StarCraft: Brood War / Remastered replay files.
 
 ## What it does
 - auto-detects the Windows replay autosave folder at `~/Documents/StarCraft/Maps/Replays/AutoSave`
-- reads `CSettings.json` from `~/Documents/StarCraft` to infer the current player nickname
-- summarizes the player's race distribution: Terran, Zerg, Protoss
-- collects per-game timeline counts for player building commands:
-  - Supply Depots (Terran)
-  - Overlords (Zerg)
-  - Pylons (Protoss)
-- shows progress and results in a simple GUI, and triggers desktop notifications when scan completes
+- reads `CSettings.json` from `~/Documents/StarCraft` and uses all `Gateway History` accounts as the current player's aliases
+- lets you override that with a manual player name input
+- scans matching replays and estimates two macro metrics:
+  - supply-block time
+  - worker-production idle time until the replay first reaches 60 workers
+- shows a compact summary with ratings plus two small charts for the first 15 minutes:
+  - supply-block seconds per 30-second bucket
+  - worker-idle seconds per 30-second bucket
+- shows progress and sends a desktop notification when the scan completes
 
 ## Running the app
 1. Install Go 1.19+.
@@ -27,6 +29,6 @@ BWStats is a small desktop tool for analyzing StarCraft: Remastered and Brood Wa
 ## Notes
 - replay folder path is currently Windows-centric (`USERPROFILE` based);
   on non-Windows systems, set `USERPROFILE` or adjust code for cross-platform paths.
-- unit tests include data-path checks for replay file discovery and settings load,
-  plus UI label update logic for race/building summaries.
-
+- metrics are command-based estimates, not exact reconstructed game state.
+- supply uses Brood War rules, not StarCraft II rules.
+- worker idle stops being counted after a replay first reaches 60 workers, even if worker count later drops.

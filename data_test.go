@@ -30,19 +30,34 @@ func TestFindReplayFilesInDir(t *testing.T) {
 	}
 }
 
-func TestLoadUserNicknameFromPath(t *testing.T) {
+func TestLoadPlayerIdentityFromPath(t *testing.T) {
 	tempDir := t.TempDir()
 	settingsPath := filepath.Join(tempDir, "CSettings.json")
-	content := `{"Gateway History":[{"account":"player123"}]}`
+	content := `{"Gateway History":[{"account":"player123"},{"account":"playerABC"}]}`
 	if err := os.WriteFile(settingsPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	user, err := loadUserNicknameFromPath(settingsPath)
+	identity, err := loadPlayerIdentityFromPath(settingsPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if user != "player123" {
-		t.Fatalf("expected player123, got %q", user)
+	if identity.DisplayName != "player123" {
+		t.Fatalf("expected player123, got %q", identity.DisplayName)
+	}
+	if len(identity.Aliases) != 2 {
+		t.Fatalf("expected 2 aliases, got %d", len(identity.Aliases))
+	}
+}
+
+func TestResolveScanTargetManualOverride(t *testing.T) {
+	identity := PlayerIdentity{
+		DisplayName: "player123",
+		Aliases:     []string{"player123", "playerABC"},
+	}
+
+	target := resolveScanTarget(identity, "override")
+	if len(target.Names) != 1 || target.Names[0] != "override" {
+		t.Fatalf("expected manual override target, got %#v", target.Names)
 	}
 }

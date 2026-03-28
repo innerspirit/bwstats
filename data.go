@@ -80,49 +80,67 @@ func findReplayFiles(progressCallback func(float64)) ([]string, error) {
 	return findReplayFilesInDir(replayDir, progressCallback)
 }
 
-// loadUserNicknameFromPath loads a nickname from a specific CSettings.json path (testable)
-func loadUserNicknameFromPath(settingsPath string) (string, error) {
+// loadPlayerIdentityFromPath loads the current player aliases from a specific
+// CSettings.json path.
+func loadPlayerIdentityFromPath(settingsPath string) (PlayerIdentity, error) {
 	// Check if file exists
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
-		return "Settings file not found", nil
+		return PlayerIdentity{
+			DisplayName: "Settings file not found",
+			Aliases:     nil,
+		}, nil
 	}
 
 	// Open and read the file
 	f, err := os.Open(settingsPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open settings file: %v", err)
+		return PlayerIdentity{}, fmt.Errorf("failed to open settings file: %v", err)
 	}
 	defer f.Close()
 
 	// Read file content
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
-		return "", fmt.Errorf("failed to read settings file: %v", err)
+		return PlayerIdentity{}, fmt.Errorf("failed to read settings file: %v", err)
 	}
 
 	// Parse JSON using the same structure as akafinder
 	var settings Settings
 	if err := json.Unmarshal(b, &settings); err != nil {
-		return "", fmt.Errorf("failed to parse settings: %v", err)
+		return PlayerIdentity{}, fmt.Errorf("failed to parse settings: %v", err)
 	}
 
-	// Use the first account as the current user
-	if len(settings.GatewayHistory) > 0 {
-		return settings.GatewayHistory[0].Account, nil
+	var aliases []string
+	for _, account := range settings.GatewayHistory {
+		name := strings.TrimSpace(account.Account)
+		if name == "" {
+			continue
+		}
+		aliases = append(aliases, name)
 	}
 
-	return "No accounts found", nil
+	if len(aliases) > 0 {
+		return PlayerIdentity{
+			DisplayName: aliases[0],
+			Aliases:     aliases,
+		}, nil
+	}
+
+	return PlayerIdentity{
+		DisplayName: "No accounts found",
+		Aliases:     nil,
+	}, nil
 }
 
-// loadUserNickname loads the user's nickname from CSettings.json
-func loadUserNickname() (string, error) {
+// loadPlayerIdentity loads the current player aliases from CSettings.json.
+func loadPlayerIdentity() (PlayerIdentity, error) {
 	// Get user home directory
 	userHome, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %v", err)
+		return PlayerIdentity{}, fmt.Errorf("failed to get user home directory: %v", err)
 	}
 
 	// Construct path to CSettings.json similarly to akafinder
 	settingsPath := filepath.Join(userHome, "Documents", "StarCraft", "CSettings.json")
-	return loadUserNicknameFromPath(settingsPath)
+	return loadPlayerIdentityFromPath(settingsPath)
 }

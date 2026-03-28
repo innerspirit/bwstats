@@ -14,98 +14,61 @@ func main() {
 	myApp.Settings().SetTheme(&FuturisticTheme{})
 
 	myWindow := myApp.NewWindow("BW Stats - Replay Analyzer")
-	myWindow.Resize(fyne.NewSize(500, 400))
+	myWindow.Resize(fyne.NewSize(720, 760))
 
 	// Load user settings
-	userNickname, err := loadUserNickname()
+	identity, err := loadPlayerIdentity()
 	if err != nil {
-		userNickname = "Error loading settings: " + err.Error()
+		identity = PlayerIdentity{
+			DisplayName: "Error loading settings: " + err.Error(),
+		}
 	}
 
-	// Create UI via helpers
-	content, terrLabel, zergLabel, protossLabel, totalLabel, progress, statusLabel, scanButton, scanBuildingButton := CreateUI(userNickname)
-	scanButton.OnTapped = func() {
-		// Reset and show progress
-		ResetStatsUI(terrLabel, zergLabel, protossLabel, totalLabel)
-		ShowProgress(progress, statusLabel, "Scanning replay files...")
-		scanButton.Disable()
+	ui := CreateUI(identity)
+	ui.ScanButton.OnTapped = func() {
+		target := resolveScanTarget(identity, ui.ManualEntry.Text)
+		UpdateSummaryUI(ui.SummaryLabel, nil)
+		ui.SupplyChart.SetSeries(make([]int, chartBucketCount))
+		ui.WorkerChart.SetSeries(make([]int, chartBucketCount))
+		ShowProgress(ui.Progress, ui.StatusLabel, "Scanning replay files...")
+		ui.ScanButton.Disable()
 
-		// Start scanning in a goroutine
 		go func() {
-			stats, err := scanReplays(userNickname, func(p float64) {
-				// Update progress bar in UI thread
+			summary, err := scanMacroStats(target, func(p float64) {
 				fyne.Do(func() {
-					progress.SetValue(p)
+					ui.Progress.SetValue(p)
 				})
 			})
 			if err != nil {
 				fyne.Do(func() {
-					statusLabel.SetText("Error: " + err.Error())
-					progress.Hide()
-					scanButton.Enable()
+					ui.StatusLabel.SetText("Error: " + err.Error())
+					ui.Progress.Hide()
+					ui.ScanButton.Enable()
 				})
 				return
 			}
 
-			// Update UI with results
 			fyne.Do(func() {
-				UpdateRaceStatsUI(terrLabel, zergLabel, protossLabel, totalLabel, stats)
-				HideProgress(progress, statusLabel, "Scan completed successfully!")
-				scanButton.Enable()
+				UpdateSummaryUI(ui.SummaryLabel, summary)
+				ui.SupplyChart.SetSeries(summary.SupplyChart)
+				ui.WorkerChart.SetSeries(summary.WorkerChart)
+				HideProgress(ui.Progress, ui.StatusLabel, "Scan completed successfully!")
+				ui.ScanButton.Enable()
 
-				// Send notification
 				fyne.CurrentApp().SendNotification(&fyne.Notification{
-					Title:   "Scan Complete",
-					Content: fmt.Sprintf("Found %d Terran, %d Zerg, %d Protoss games", stats.Terran, stats.Zerg, stats.Protoss),
+					Title: "Scan Complete",
+					Content: fmt.Sprintf(
+						"%s: %d matched replays, %s avg supply block, %s avg worker idle",
+						target.DisplayLabel,
+						summary.MatchedReplays,
+						formatDurationSeconds(int(summary.AvgSupplyBlockedSeconds)),
+						formatDurationSeconds(int(summary.AvgWorkerIdleSeconds)),
+					),
 				})
 			})
 		}()
 	}
 
-	scanBuildingButton.OnTapped = func() {
-		// Reset stats and show progress
-		ResetStatsUI(terrLabel, zergLabel, protossLabel, totalLabel)
-		ShowProgress(progress, statusLabel, "Scanning building stats...")
-		scanBuildingButton.Disable()
-		scanButton.Disable()
-
-		// Start scanning in a goroutine
-		go func() {
-			buildingStats, err := scanBuildingStats(userNickname, func(p float64) {
-				fyne.Do(func() {
-					progress.SetValue(p)
-				})
-			})
-			if err != nil {
-				fyne.Do(func() {
-					statusLabel.SetText("Error: " + err.Error())
-					progress.Hide()
-					scanBuildingButton.Enable()
-					scanButton.Enable()
-				})
-				return
-			}
-
-			// Update UI with results
-			fyne.Do(func() {
-				if playerStats, exists := buildingStats[userNickname]; exists {
-					UpdateBuildingStatsUI(terrLabel, zergLabel, protossLabel, totalLabel, playerStats)
-				} else {
-					statusLabel.SetText("No building stats found for user")
-				}
-				HideProgress(progress, statusLabel, "Building stats scan completed!")
-				scanBuildingButton.Enable()
-				scanButton.Enable()
-
-				// Send notification
-				fyne.CurrentApp().SendNotification(&fyne.Notification{
-					Title:   "Building Stats Scan Complete",
-					Content: fmt.Sprintf("Building stats collected for %s", userNickname),
-				})
-			})
-		}()
-	}
-
-	myWindow.SetContent(content)
+	myWindow.SetContent(ui.Content)
 	myWindow.ShowAndRun()
 }

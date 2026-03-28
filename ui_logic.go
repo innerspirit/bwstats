@@ -1,24 +1,56 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
-func formatRaceStats(stats *RaceStats) (terr, zerg, protoss, total string) {
-	return fmt.Sprintf("Terran: %d", stats.Terran),
-		fmt.Sprintf("Zerg: %d", stats.Zerg),
-		fmt.Sprintf("Protoss: %d", stats.Protoss),
-		fmt.Sprintf("Total Games: %d", stats.Terran+stats.Zerg+stats.Protoss)
+func formatSummaryLines(summary *MacroSummary) []string {
+	if summary == nil {
+		return []string{"No results yet."}
+	}
+
+	lines := []string{
+		fmt.Sprintf("Target: %s", summary.TargetLabel),
+		fmt.Sprintf("Matched Replays: %d", summary.MatchedReplays),
+	}
+	if summary.SkippedReplays > 0 {
+		lines = append(lines, fmt.Sprintf("Skipped Replays: %d", summary.SkippedReplays))
+	}
+
+	lines = append(lines,
+		fmt.Sprintf(
+			"Supply Block: %s total, %s avg, rating: %s",
+			formatDurationSeconds(summary.TotalSupplyBlockedSeconds),
+			formatDurationSeconds(int(math.Round(summary.AvgSupplyBlockedSeconds))),
+			summary.SupplyRating,
+		),
+		fmt.Sprintf(
+			"Worker Idle: %s total, %s avg, rating: %s",
+			formatDurationSeconds(summary.TotalWorkerIdleSeconds),
+			formatDurationSeconds(int(math.Round(summary.AvgWorkerIdleSeconds))),
+			summary.WorkerRating,
+		),
+	)
+
+	return lines
 }
 
-func formatBuildingStats(playerStats *BuildingStats) (terr, zerg, protoss, total string) {
-	return fmt.Sprintf("Supply Depots: %d (avg: %.2f/sec)",
-			sumSlice(playerStats.SupplyDepots),
-			float64(sumSlice(playerStats.SupplyDepots))/float64(len(playerStats.SupplyDepots))),
-		fmt.Sprintf("Overlords: %d (avg: %.2f/sec)",
-			sumSlice(playerStats.Overlords),
-			float64(sumSlice(playerStats.Overlords))/float64(len(playerStats.Overlords))),
-		fmt.Sprintf("Pylons: %d (avg: %.2f/sec)",
-			sumSlice(playerStats.Pylons),
-			float64(sumSlice(playerStats.Pylons))/float64(len(playerStats.Pylons))),
-		fmt.Sprintf("Total Buildings: %d",
-			sumSlice(playerStats.SupplyDepots)+sumSlice(playerStats.Overlords)+sumSlice(playerStats.Pylons))
+func formatDurationSeconds(totalSeconds int) string {
+	minutes := totalSeconds / 60
+	seconds := totalSeconds % 60
+	if minutes == 0 {
+		return fmt.Sprintf("%ds", seconds)
+	}
+	return fmt.Sprintf("%dm%02ds", minutes, seconds)
+}
+
+func formatChartFooter(series []int) string {
+	peak := 0
+	for _, value := range series {
+		if value > peak {
+			peak = value
+		}
+	}
+	return fmt.Sprintf("Peak bucket: %ds", peak)
 }
